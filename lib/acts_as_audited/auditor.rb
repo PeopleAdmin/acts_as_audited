@@ -75,7 +75,11 @@ module ActsAsAudited
           attr_accessible :audit_comment
         end
 
-        has_many :audits, :as => :auditable
+        if self.superclass.to_s == "CentralBase"
+          has_many :audits, :as => :auditable, :class_name => "CentralAudit"
+        else
+          has_many :audits, :as => :auditable, :class_name => "Audit"
+        end
         attr_protected :audit_ids if options[:protect]
         Audit.audited_class_names << self.to_s
 
@@ -98,6 +102,91 @@ module ActsAsAudited
     end
 
     module InstanceMethods
+
+      def deep_audits(chain=[])
+        # don't get stuck in a loop
+        return [] if chain.include? self.class
+
+        audit_list = Array.new
+        audit_list += audits
+        audit_list += Audit.audits_for_deleted_associations(self)
+        chain << self.class
+        self.class.reflections.each do |key, value|
+          next if [:versions, :audits].include? key
+          begin
+            # TODO: do we want to skip the "has_many through"
+            if value.macro == :has_many
+              send(key).each {|x| audit_list += x.deep_audits(chain)}
+            elsif value.macro == :has_one
+              audit_list += send(key).deep_audits(chain) if send(key)
+            else
+              # TODO: do we want belongs_to?
+            end
+          rescue => e
+            logger.error "ERROR: failed to get audit records on #{self.class} calling #{key}" 
+            logger.error e.message
+            logger.error "ERROR: #{e.backtrace.join("\n")}"
+          end
+        end
+        audit_list
+      end
+  
+      def all_audits_by_time
+        clean_up_audit_list(deep_audits)
+      end
+
+      def clean_up_audit_list(list)
+        reduced_audits = Array.new
+        list.each do |item|
+          next if reduced_audits.index item
+          reduced_audits << item
+        end
+        reduced_audits.sort {|x, y| x.created_at <=> y.created_at }
+      end
+
+      def display_audits
+        if self.respond_to? :display_audits_map
+          clean_up_audit_list(deep_display_audits(display_audits_map[self.class.to_s.underscore.to_sym]))
+        else
+          []
+        end
+      end
+
+      def deep_display_audits(display_map)
+        audit_list = Array.new
+        audit_list += audits
+        # push the audit display map onto the object
+        audit_list.each {|item| item.display_map = display_map}
+        if display_map[:associations]
+          # see what associations have deletes audited against them
+          deleted_audit_types = Audit.deleted_audit_types(self)
+          self.class.reflections.each do |key, value|
+            next if [:versions, :audits].include? key
+            next unless display_map[:associations].keys.include? key
+            begin
+              if value.macro == :has_many
+                send(key).each {|x| audit_list += x.deep_display_audits(display_map[:associations][key])}
+              elsif value.macro == :has_one
+                audit_list += send(key).deep_display_audits(display_map[:associations][key]) if send(key)
+              else
+                # TODO: do we want belongs_to?
+              end
+              if deleted_audit_types.include? value.klass.to_s
+                # get the list of audits related to the deleted items
+                deleted_audit_list = Audit.audits_for_deleted_association(self, value.klass.to_s)
+                # give it the display map that would have been pushed down to the object
+                deleted_audit_list.each {|x| x.display_map = display_map[:associations][key] }
+                audit_list += deleted_audit_list
+              end
+            rescue => e
+              logger.error "ERROR: failed to get audit records on #{self.class} calling #{key}" 
+              logger.error e.message
+              logger.error "ERROR: #{e.backtrace.join("\n")}"
+            end
+          end
+        end
+        audit_list
+      end
 
       # Temporarily turns off auditing while saving.
       def save_without_auditing

@@ -10,6 +10,11 @@ require 'set'
 # * <tt>created_at</tt>: Time that the change was performed
 #
 class Audit < ActiveRecord::Base
+
+  DEFAULT_USER_NAME = "System"
+
+  attr_accessor :display_map
+
   belongs_to :auditable, :polymorphic => true
   belongs_to :user, :polymorphic => true
   belongs_to :associated, :polymorphic => true
@@ -119,6 +124,20 @@ class Audit < ActiveRecord::Base
       attrs[attr] = Array(values).first
       attrs
     end
+  end
+
+  def display_changes
+    @display_changes ||= build_display_changes
+  end
+
+  def display_user
+    actor = ""
+    if user.is_a? String
+      actor = user == "0" ? DEFAULT_USER_NAME : username
+    else 
+      actor = user ? "#{user.first_name} #{user.last_name}" : DEFAULT_USER_NAME 
+    end
+    actor
   end
 
 private
