@@ -20,18 +20,86 @@ class Audit < ActiveRecord::Base
   belongs_to :associated, :polymorphic => true
 
   before_create :set_version_number, :set_audit_user
+  before_save :fix_timezone
 
   serialize :audited_changes
 
   cattr_accessor :audited_class_names
   self.audited_class_names = Set.new
-
+  
   # Order by ver
   default_scope order(:version)
   scope :descending, reorder("version DESC")
 
+  # PeopleAdmin Scopes
+  scope :my_deleted_associations, lambda { |object|
+    {:conditions => ["audits.action = 'destroy' AND audits.audited_changes LIKE ?", '%'+ "#{object.class.to_s.foreign_key}: \n- \n- #{object.id}\n" +'%']}
+  }
+
+  scope :my_deleted_association, lambda { |object, class_name|
+    {:conditions => ["audits.action = 'destroy' AND audits.auditable_type = ? AND audits.audited_changes LIKE ?", class_name, '%'+ "#{object.class.to_s.foreign_key}: \n- \n- #{object.id}\n" +'%']}
+  }
+
+  scope :my_deleted_associations_sti, lambda { |object|
+    {:conditions => ["audits.action = 'destroy' AND audits.audited_changes LIKE ?", '%'+ "#{object.class.base_class.to_s.foreign_key}: \n- \n- #{object.id}\n" +'%']}
+  }
+
+  scope :my_deleted_association_sti, lambda { |object, class_name|
+    {:conditions => ["audits.action = 'destroy' AND audits.auditable_type = ? AND audits.audited_changes LIKE ?", class_name, '%'+ "#{object.class.base_class.to_s.foreign_key}: \n- \n- #{object.id}\n" +'%']}
+  }
+
   class << self
 
+    def audits_for_deleted(deleted_audits)
+      audit_list = Array.new
+      deleted_audits.each do |del_audit|
+        audit_list += Audit.find_all_by_auditable_type_and_auditable_id(del_audit.auditable_type, del_audit.auditable_id)
+      end
+      audit_list
+    end
+
+    def audits_for_deleted_associations_sti(object)
+      the_audits = my_deleted_associations(object)
+      if object.class != object.class.base_class
+        the_audits += my_deleted_associations_sti(object)
+      end
+      the_audits
+    end
+
+    def audits_for_deleted_associations(object)
+      Audit.audits_for_deleted(audits_for_deleted_associations_sti(object))
+    end
+
+    def deleted_audit_types(object)
+      audits_for_deleted_associations_sti(object).map(&:auditable_type)
+    end
+
+    def audits_for_deleted_association(object, class_name)
+      the_audits = my_deleted_association(object, class_name)
+      if object.class != object.class.base_class
+        the_audits += my_deleted_association_sti(object, class_name)
+      end
+      Audit.audits_for_deleted(the_audits)
+    end
+
+    def fix_timezone
+      return unless changes
+      changes.each do |name, value|
+        if value.is_a? Array
+          changes[name] = [adjust_for_time(value[0]), adjust_for_time(value[1])]
+        end
+      end
+    end
+
+    def adjust_for_time(value)
+      return unless value
+      if value.is_a?(Date) || value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
+        value.to_s(:db)
+      else
+        value
+      end
+    end
+    
     # Returns the list of classes that are being audited
     def audited_classes
       audited_class_names.map(&:constantize)
