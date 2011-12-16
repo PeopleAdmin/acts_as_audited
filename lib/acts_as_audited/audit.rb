@@ -48,6 +48,24 @@ class Audit < ActiveRecord::Base
     {:conditions => ["audits.action = 'destroy' AND audits.auditable_type = ? AND audits.audited_changes LIKE ?", class_name, '%'+ "#{object.class.base_class.to_s.foreign_key}: \n- \n- #{object.id}\n" +'%']}
   }
 
+  def fix_timezone
+    return unless changes
+    changes.each do |name, value|
+      if value.is_a? Array
+        changes[name] = [adjust_for_time(value[0]), adjust_for_time(value[1])]
+      end
+    end
+  end
+
+  def adjust_for_time(value)
+    return unless value
+    if value.is_a?(Date) || value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
+      value.to_s(:db)
+    else
+      value
+    end
+  end
+  
   class << self
 
     def audits_for_deleted(deleted_audits)
@@ -80,24 +98,6 @@ class Audit < ActiveRecord::Base
         the_audits += my_deleted_association_sti(object, class_name)
       end
       Audit.audits_for_deleted(the_audits)
-    end
-
-    def fix_timezone
-      return unless changes
-      changes.each do |name, value|
-        if value.is_a? Array
-          changes[name] = [adjust_for_time(value[0]), adjust_for_time(value[1])]
-        end
-      end
-    end
-
-    def adjust_for_time(value)
-      return unless value
-      if value.is_a?(Date) || value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
-        value.to_s(:db)
-      else
-        value
-      end
     end
     
     # Returns the list of classes that are being audited
