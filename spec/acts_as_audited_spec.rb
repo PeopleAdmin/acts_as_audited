@@ -11,7 +11,7 @@ describe ActsAsAudited::Auditor do
       User.should be_a_kind_of( ActsAsAudited::Auditor::SingletonMethods )
     end
 
-    ['created_at', 'updated_at', 'created_on', 'updated_on', 'lock_version', 'id', 'password'].each do |column|
+    ['created_at', 'updated_at', 'created_on', 'updated_on', 'lock_audit_version', 'id', 'password'].each do |column|
       it "should not audit #{column}" do
         User.non_audited_columns.should include(column)
       end
@@ -276,21 +276,21 @@ describe ActsAsAudited::Auditor do
     it "should find the given revision" do
       revision = user.revision(3)
       revision.should be_a_kind_of( User )
-      revision.version.should be(3)
+      revision.audit_version.should be(3)
       revision.name.should == 'Foobar 3'
     end
 
     it "should find the previous revision with :previous" do
       revision = user.revision(:previous)
-      revision.version.should be(4)
+      revision.audit_version.should be(4)
       #revision.should == user.revision(4)
       revision.attributes.should == user.revision(4).attributes
     end
 
     it "should be able to get the previous revision repeatedly" do
       previous = user.revision(:previous)
-      previous.version.should be(4)
-      previous.revision(:previous).version.should be(3)
+      previous.audit_version.should be(4)
+      previous.revision(:previous).audit_version.should be(3)
     end
 
     it "should be able to set protected attributes" do
@@ -358,7 +358,7 @@ describe ActsAsAudited::Auditor do
     it "should find the latest revision before the given time" do
       Audit.update( user.audits.first.id, :created_at => 1.hour.ago )
       user.update_attributes :name => 'updated'
-      user.revision_at( 2.minutes.ago ).version.should be(1)
+      user.revision_at( 2.minutes.ago ).audit_version.should be(1)
     end
 
     it "should be nil if given a time before audits" do

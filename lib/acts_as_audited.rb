@@ -31,7 +31,7 @@ module ActsAsAudited
     attr_writer :ignored_attributes
 
     def ignored_attributes
-       @ignored_attributes ||= ['lock_version',
+       @ignored_attributes ||= ['lock_audit_version',
                                 'created_at',
                                 'updated_at',
                                 'created_on',

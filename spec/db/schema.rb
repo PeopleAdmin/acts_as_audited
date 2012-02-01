@@ -34,7 +34,7 @@ ActiveRecord::Schema.define(:version => 0) do
     t.column :username, :string
     t.column :action, :string
     t.column :audited_changes, :text
-    t.column :version, :integer, :default => 0
+    t.column :audit_version, :integer, :default => 0
     t.column :comment, :string
     t.column :remote_address, :string
     t.column :created_at, :datetime

@@ -27,7 +27,7 @@ module ActsAsAudited
       # * +except+ - Excludes fields from being saved in the audit log.
       #   By default, acts_as_audited will audit all but these fields:
       #
-      #     [self.primary_key, inheritance_column, 'lock_version', 'created_at', 'updated_at']
+      #     [self.primary_key, inheritance_column, 'lock_audit_version', 'created_at', 'updated_at']
       #   You can add to those by passing one or an array of fields to skip.
       #
       #     class User < ActiveRecord::Base
@@ -87,7 +87,7 @@ module ActsAsAudited
         before_update :audit_update if !options[:on] || (options[:on] && options[:on].include?(:update))
         before_destroy :audit_destroy if !options[:on] || (options[:on] && options[:on].include?(:destroy))
 
-        attr_accessor :version
+        attr_accessor :audit_version
 
         extend ActsAsAudited::Auditor::SingletonMethods
         include ActsAsAudited::Auditor::InstanceMethods
@@ -207,11 +207,11 @@ module ActsAsAudited
       #
       #   user.revisions.each do |revision|
       #     user.name
-      #     user.version
+      #     user.audit_version
       #   end
       #
-      def revisions(from_version = 1)
-        audits = self.audits.where(['version >= ?', from_version])
+      def revisions(from_audit_version = 1)
+        audits = self.audits.where(['audit_version >= ?', from_audit_version])
         return [] if audits.empty?
         revisions = []
         audits.each do |audit|
@@ -220,9 +220,9 @@ module ActsAsAudited
         revisions
       end
 
-      # Get a specific revision specified by the version number, or +:previous+
-      def revision(version)
-        revision_with Audit.reconstruct_attributes(audits_to(version))
+      # Get a specific revision specified by the audit_version number, or +:previous+
+      def revision(audit_version)
+        revision_with Audit.reconstruct_attributes(audits_to(audit_version))
       end
 
       # Find the oldest revision recorded prior to the date/time provided.
@@ -271,16 +271,16 @@ module ActsAsAudited
         end
       end
 
-      def audits_to(version = nil)
-        if version == :previous
-          version = if self.version
-            self.version - 1
+      def audits_to(audit_version = nil)
+        if audit_version == :previous
+          audit_version = if self.audit_version
+            self.audit_version - 1
           else
             previous = audits.descending.offset(1).first
-            previous ? previous.version : 1
+            previous ? previous.audit_version : 1
           end
         end
-        audits.where(['version <= ?', version])
+        audits.where(['audit_version <= ?', audit_version])
       end
 
       def audit_create
