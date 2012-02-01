@@ -14,16 +14,16 @@ class Audit < ActiveRecord::Base
   belongs_to :user, :polymorphic => true
   belongs_to :associated, :polymorphic => true
 
-  before_create :set_version_number, :set_audit_user
-
+  before_create :set_audit_version_number, :set_audit_user
+  
   serialize :audited_changes
 
   cattr_accessor :audited_class_names
   self.audited_class_names = Set.new
-
+  
   # Order by ver
-  default_scope order(:version)
-  scope :descending, reorder("version DESC")
+  default_scope order(:audit_version)
+  scope :descending, reorder("audit_version DESC")
 
   scope :creates,   :conditions => {:action => 'create'}
   scope :updates,   :conditions => {:action => 'update'}
@@ -53,7 +53,7 @@ class Audit < ActiveRecord::Base
     def reconstruct_attributes(audits)
       attributes = {}
       result = audits.collect do |audit|
-        attributes.merge!(audit.new_attributes).merge!(:version => audit.version)
+        attributes.merge!(audit.new_attributes).merge!(:audit_version => audit.audit_version)
         yield attributes if block_given?
       end
       block_given? ? result : attributes
@@ -99,14 +99,14 @@ class Audit < ActiveRecord::Base
   def revision
     clazz = auditable_type.constantize
     ( clazz.find_by_id(auditable_id) || clazz.new ).tap do |m|
-      Audit.assign_revision_attributes(m, self.class.reconstruct_attributes(ancestors).merge({:version => version}))
+      Audit.assign_revision_attributes(m, self.class.reconstruct_attributes(ancestors).merge({:audit_version => audit_version}))
     end
   end
 
   # Return all audits older than the current one.
   def ancestors
-    self.class.where(['auditable_id = ? and auditable_type = ? and version <= ?',
-      auditable_id, auditable_type, version])
+    self.class.where(['auditable_id = ? and auditable_type = ? and audit_version <= ?',
+      auditable_id, auditable_type, audit_version])
   end
 
   # Returns a hash of the changed attributes with the new values
@@ -127,13 +127,13 @@ class Audit < ActiveRecord::Base
 
 private
 
-  def set_version_number
-    max = self.class.maximum(:version,
+  def set_audit_version_number
+    max = self.class.maximum(:audit_version,
       :conditions => {
         :auditable_id => auditable_id,
         :auditable_type => auditable_type
       }) || 0
-    self.version = max + 1
+    self.audit_version = max + 1
   end
 
   def set_audit_user

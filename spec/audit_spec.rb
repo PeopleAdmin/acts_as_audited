@@ -50,7 +50,7 @@ describe Audit do
       5.times { |i| user.update_attribute :name, (i + 2).to_s }
 
       user.audits.each do |audit|
-        audit.revision.name.should == audit.version.to_s
+        audit.revision.name.should == audit.audit_version.to_s
       end
     end
 
@@ -81,12 +81,12 @@ describe Audit do
 
   it "should set the version number on create" do
     user = User.create! :name => 'Set Version Number'
-    user.audits.first.version.should be(1)
+    user.audits.first.audit_version.should be(1)
     user.update_attribute :name, "Set to 2"
-    user.audits(true).first.version.should be(1)
-    user.audits(true).last.version.should be(2)
+    user.audits(true).first.audit_version.should be(1)
+    user.audits(true).last.audit_version.should be(2)
     user.destroy
-    Audit.where(:auditable_type => 'User', :auditable_id => user.id).last.version.should be(3)
+    Audit.where(:auditable_type => 'User', :auditable_id => user.id).last.audit_version.should be(3)
   end
 
   describe "reconstruct_attributes" do
