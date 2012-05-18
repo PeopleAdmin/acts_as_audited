@@ -194,6 +194,18 @@ class Audit < ActiveRecord::Base
     end
   end
 
+  def header_title
+    if display_map[:display_title]
+      if display_map[:display_title] != :none
+        display_map[:display_title]
+      else
+        nil
+      end
+    else
+      auditable_class
+    end
+  end
+
   def build_header
     {:actor => display_user, :action => (verbize_action),
       :date => created_at, :subject => header_title}
