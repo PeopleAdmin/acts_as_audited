@@ -260,6 +260,74 @@ private
     nil # prevent stopping callback chains
   end
 
+  def build_display_changes
+    # cycle changes and put in an array
+    change_list = Array.new
+    changes.each do |change|
+      if (change_sentance = humanize_change(change))
+        change_list << change_sentance
+      end
+    end
+    change_list
+  end
+
+  # nice output of change hash
+  def humanize_change(change)
+    begin
+      key = change[0]
+      old = change[1][0]
+      new = change[1][1]
+
+      return if should_hide_key? key
+
+      return {:subject => key.humanize.titleize} if should_hide_changes? key
+
+      if use_mask? key
+        old = apply_mask(key, old)
+        new = apply_mask(key, new)
+      else
+        #a set of activities only apply if the key ends in _id.
+        if key.match(/_id$/)
+          if (changes = handle_belongs_to(key, old, new))
+            key = changes[0]
+            old = changes[1]
+            new = changes[2]
+          end
+        end
+      end
+      # We want to show empty strings as nil
+      new = set_to_nil? new
+      old = set_to_nil? old
+      if value_present old
+        # "#{key.humanize.titleize} was changed from \"#{old}\" to \"#{new}\""
+        {:subject => key.humanize.titleize, :old_value => old, :new_value => new}
+      else
+        if value_present new
+          # "#{key.humanize.titleize} was set to \"#{new}\""
+          {:subject => key.humanize.titleize, :new_value => new}
+        end
+      end
+    rescue
+      # puts "Hit Exception in humanize_change for #{audit} and change #{change}"
+      # TODO: right now, we are basically hiding changes that we couldn't format
+      # which is really an error condition.  We could uncomment the line below
+      # and just put out an unrully format.
+      # {:subject => "", :new_value => change}
+    end
+  end
+
+  def value_present(value)
+    !value.is_a?(NilClass)
+  end
+
+  def set_to_nil? (value)
+    if value.is_a? String and value.empty?
+      return nil
+    else
+      return value
+    end
+  end
+
   # Note: on the action, unless we are showing the title
   # of the associated object, all adds and deletes should be
   # set to updated.
@@ -270,6 +338,42 @@ private
       "Updated"
     else
       should_show_add_remove? ? "Removed" : "Updated"
+    end
+  end
+
+  # this is pretty geared around lookups, but could
+  # be generified
+  def handle_belongs_to(key, old, new)
+    old_name = nil
+    new_name = nil
+    relationship = key_to_relationship(key)
+    if relationship
+      return if relationship.options[:polymorphic]
+      if new
+        new_name = guess_name(relationship.klass.find(new))
+      end
+      if old
+        old_name = guess_name(relationship.klass.find(old))
+      end
+      key = key.sub("lookup_", "")
+      key = key.sub("_id", "")
+    end
+    if new_name || old_name
+      [key, old_name, new_name]
+    end
+  end
+
+  def key_to_relationship(key)
+    relationship_key = key.sub("_id", "")
+    auditable_class.reflections[relationship_key.to_sym]
+  end
+
+  def auditable_class
+    if auditable
+      auditable.class
+    else
+      # need to deal with the fact that the auditable class is gone.
+      auditable_type.constantize
     end
   end
 
