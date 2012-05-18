@@ -248,4 +248,55 @@ private
     nil # prevent stopping callback chains
   end
 
+  # Note: on the action, unless we are showing the title
+  # of the associated object, all adds and deletes should be
+  # set to updated.
+  def verbize_action
+    if "create" == action
+      should_show_add_remove? ? "Added" : "Updated"
+    elsif "update" == action
+      "Updated"
+    else
+      should_show_add_remove? ? "Removed" : "Updated"
+    end
+  end
+
+  def guess_name(obj)
+    if obj.respond_to? "full_name"
+      return (obj.send :full_name)
+    end
+    if obj.respond_to? "name"
+      return (obj.send :name)
+    end
+    if obj.respond_to? "value"
+      return (obj.send :value)
+    end
+    if obj.respond_to? "title"
+      return (obj.send :title)
+    end
+  end
+
+  def should_show_add_remove?
+    is_parent? || header_title
+  end
+
+  def should_hide_key?(key)
+    display_map[:hide] && display_map[:hide].include?(key.to_sym)
+  end
+
+  def should_hide_changes?(key)
+    display_map[:key_only] && display_map[:key_only].include?(key.to_sym)
+  end
+
+  def is_parent?
+    display_map[:parent]
+  end
+
+  def use_mask?(key)
+    display_map[:mask] && display_map[:mask].keys.include?(key.to_sym)
+  end
+
+  def apply_mask(key, value)
+    display_map[:mask][key.to_sym][value] if value
+  end
 end
