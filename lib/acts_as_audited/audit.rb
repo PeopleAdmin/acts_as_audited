@@ -26,7 +26,7 @@ class Audit < ActiveRecord::Base
 
   cattr_accessor :audited_class_names
   self.audited_class_names = Set.new
-  
+
   # Order by ver
   default_scope order(:audit_version)
   scope :descending, reorder("audit_version DESC")
@@ -65,7 +65,7 @@ class Audit < ActiveRecord::Base
       value
     end
   end
-  
+
   class << self
 
     def audits_for_deleted(deleted_audits)
@@ -99,7 +99,7 @@ class Audit < ActiveRecord::Base
       end
       Audit.audits_for_deleted(the_audits)
     end
-    
+
     # Returns the list of classes that are being audited
     def audited_classes
       audited_class_names.map(&:constantize)
@@ -194,6 +194,30 @@ class Audit < ActiveRecord::Base
     end
   end
 
+  def build_header
+    {:actor => display_user, :action => (verbize_action),
+      :date => created_at, :subject => header_title}
+  end
+
+  # an audit is displayable if
+  # it is the create, has a sub header
+  # or any details.
+  def displayable?
+    ((["create", "destroy"].include? action) && (is_parent? || header_title)) || display_details?
+  end
+
+  def display_header
+    @display_header ||= build_header
+  end
+
+  def display_details?
+    has_changes?
+  end
+
+  def has_changes?
+    display_changes && !display_changes.empty?
+  end
+
   def display_changes
     @display_changes ||= build_display_changes
   end
@@ -202,8 +226,8 @@ class Audit < ActiveRecord::Base
     actor = ""
     if user.is_a? String
       actor = user == "0" ? DEFAULT_USER_NAME : username
-    else 
-      actor = user ? "#{user.first_name} #{user.last_name}" : DEFAULT_USER_NAME 
+    else
+      actor = user ? "#{user.first_name} #{user.last_name}" : DEFAULT_USER_NAME
     end
     actor
   end
