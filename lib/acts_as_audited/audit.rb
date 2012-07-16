@@ -49,10 +49,10 @@ class Audit < ActiveRecord::Base
   }
 
   def fix_timezone
-    return unless changes
-    changes.each do |name, value|
+    return unless audited_changes
+    audited_changes.each do |name, value|
       if value.is_a? Array
-        changes[name] = [adjust_for_time(value[0]), adjust_for_time(value[1])]
+        audited_changes[name] = [adjust_for_time(value[0]), adjust_for_time(value[1])]
       end
     end
   end
@@ -263,7 +263,7 @@ private
   def build_display_changes
     # cycle changes and put in an array
     change_list = Array.new
-    changes.each do |change|
+    audited_changes.each do |change|
       if (change_sentance = humanize_change(change))
         change_list << change_sentance
       end
