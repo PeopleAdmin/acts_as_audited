@@ -211,6 +211,10 @@ class Audit < ActiveRecord::Base
       :date => created_at, :subject => header_title}
   end
 
+  def display_map
+    @display_map || {}
+  end
+
   # an audit is displayable if
   # it is the create, has a sub header
   # or any details.
