@@ -279,8 +279,14 @@ private
   def humanize_change(change)
     begin
       key = change[0]
-      old = change[1][0]
-      new = change[1][1]
+      val = change[1]
+      if val.is_a?(Array)
+        old = change[1][0]
+        new = change[1][1]
+      else
+        old = nil
+        new = change[1]
+      end
 
       return if should_hide_key? key
 
