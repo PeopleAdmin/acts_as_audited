@@ -159,7 +159,15 @@ module ActsAsAudited
         audit_list.each {|item| item.display_map = display_map}
         if display_map[:associations]
           # see what associations have deletes audited against them
-          deleted_audit_types = Audit.deleted_audit_types(self)
+
+
+          # Audit.deleted_audit_types performs very expensive LIKE queries.
+          # The LIKE queries are no longer formed correctly to match against
+          # the new format of the audited_changes hash.
+          # I am commenting it out for now. The new solution is going to take
+          # advantage of the 'associated' accessor to find deleted objects.
+          deleted_audit_types = [] #Audit.deleted_audit_types(self)
+
           self.class.reflections.each do |key, value|
             next if [:versions, :audits].include? key
             next unless display_map[:associations].keys.include? key
