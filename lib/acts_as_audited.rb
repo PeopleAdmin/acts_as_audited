@@ -28,11 +28,11 @@ module ActsAsAudited
   class << self
     attr_accessor :ignored_attributes, :current_user_method
   end
-  @ignored_attributes ||= ['lock_version',
-                          'created_at',
-                          'updated_at',
-                          'created_on',
-                          'updated_on']
+       @ignored_attributes ||= ['lock_audit_version',
+                                'created_at',
+                                'updated_at',
+                                'created_on',
+                                'updated_on']
 
   # The method to be called to return the current user for logging in the audits.
   @current_user_method = :current_user
