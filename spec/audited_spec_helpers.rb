@@ -4,6 +4,10 @@ module AuditedSpecHelpers
     User.create({:name => 'Brandon', :username => 'brandon', :password => 'password'}.merge(attrs))
   end
 
+  def build_user(attrs = {})
+    User.new({:name => 'darth', :username => 'darth', :password => 'noooooooo'}.merge(attrs))
+  end
+
   def create_versions(n = 2)
     User.create(:name => 'Foobar 1').tap do |u|
       (n - 1).times do |i|
