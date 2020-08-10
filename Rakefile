@@ -1,38 +1,18 @@
-require 'rake'
+#!/usr/bin/env rake
+
+require 'bundler/gem_helper'
 require 'rspec/core/rake_task'
 require 'rake/testtask'
-require 'bundler'
-Bundler::GemHelper.install_tasks
+require 'appraisal'
 
-$:.unshift File.expand_path('../lib', __FILE__)
+Bundler::GemHelper.install_tasks(name: 'audited')
 
-require 'acts_as_audited'
+RSpec::Core::RakeTask.new(:spec)
 
-desc 'Default: run specs and tests'
-task :default => [:spec, :test]
-
-RSpec::Core::RakeTask.new do |t|
-  t.rspec_opts = ["-c", "-f progress", "-r ./spec/spec_helper.rb"]
-  t.pattern = 'spec/*_spec.rb'
-end
-
-RSpec::Core::RakeTask.new(:rcov) do |t|
-  t.rcov = true
-  t.rcov_opts =  %q[--exclude "spec"]
-end
-
-desc 'Test the acts_as_audited generators'
-Rake::TestTask.new(:test) do |t|
-  t.libs << 'lib'
-  t.libs << 'test'
-  t.pattern = 'test/*_test.rb'
+Rake::TestTask.new do |t|
+  t.libs << "test"
+  t.test_files = FileList['test/**/*_test.rb']
   t.verbose = true
 end
 
-begin
-  require 'yard'
-  YARD::Rake::YardocTask.new
-rescue LoadError
-  puts "YARD (or a dependency) not available. Install it with: bundle install"
-end
-
+task default: [:spec, :test]

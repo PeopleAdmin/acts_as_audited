@@ -1,7 +1,3 @@
-source 'http://rubygems.org'
+source 'https://rubygems.org'
 
-gemspec
-
-gem "sqlite3"
-gem "rspec-rails", "~> 2.0"
-gem "simplecov"
+gemspec name: "audited"

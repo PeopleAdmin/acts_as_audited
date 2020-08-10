@@ -1,19 +1,22 @@
 ENV['RAILS_ENV'] = 'test'
 
-$:.unshift File.dirname(__FILE__)
-
+require 'bundler'
+if Bundler.definition.dependencies.map(&:name).include?('protected_attributes')
+  require 'protected_attributes'
+end
 require 'rails_app/config/environment'
 require 'rspec/rails'
-require 'acts_as_audited'
+require 'audited'
+require 'audited-rspec'
 require 'audited_spec_helpers'
+require 'support/active_record/models'
 
-RSpec.configure do |c|
-  c.include AuditedSpecHelpers
+SPEC_ROOT = Pathname.new(File.expand_path('../', __FILE__))
 
-  c.before(:suite) do
-    ActiveRecord::Base.logger = Logger.new(File.dirname(__FILE__) + "/debug.log")
-    ActiveRecord::Migration.verbose = false
-    load(File.dirname(__FILE__) + "/db/schema.rb")
-    require 'spec_models'
-  end
+Dir[SPEC_ROOT.join('support/*.rb')].each{|f| require f }
+
+RSpec.configure do |config|
+  config.include AuditedSpecHelpers
+  config.use_transactional_fixtures = false if Rails.version.start_with?('4.')
+  config.use_transactional_tests = false if config.respond_to?(:use_transactional_tests=)
 end
