@@ -67,7 +67,7 @@ module Audited
           before_destroy :require_comment if audited_options[:on].include?(:destroy)
         end
 
-        has_many :audits, -> { order(audit_version: :asc) }, as: :auditable, class_name: Audited.audit_class.name, inverse_of: :auditable
+        has_many_audits
         
         Audited.audit_class.audited_class_names << to_s
 
@@ -83,6 +83,10 @@ module Audited
         set_callback :audit, :around, :around_audit, if: lambda { respond_to?(:around_audit, true) }
 
         enable_auditing
+      end
+
+      def has_many_audits
+        has_many :audits, -> { order(audit_version: :asc) }, as: :auditable, class_name: Audited.audit_class.name, inverse_of: :auditable
       end
 
       def has_associated_audits
