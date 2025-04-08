@@ -8,7 +8,7 @@ module Audited
   # * <tt>action</tt>: one of create, update, or delete
   # * <tt>audited_changes</tt>: a hash of all the changes
   # * <tt>comment</tt>: a comment set with the audit
-  # * <tt>Audit version</tt>: the audit version of the model
+  # * <tt>version</tt>: the version of the model
   # * <tt>request_uuid</tt>: a uuid based that allows audits from the same controller request
   # * <tt>created_at</tt>: Time that the change was performed
   #
@@ -16,7 +16,7 @@ module Audited
   class YAMLIfTextColumnType
     class << self
       def load(obj)
-        if Audited.audit_class.columns_hash["audited_changes"].type.to_s == "text"
+        if text_column?
           ActiveRecord::Coders::YAMLColumn.new(Object).load(obj)
         else
           obj
@@ -24,11 +24,15 @@ module Audited
       end
 
       def dump(obj)
-        if Audited.audit_class.columns_hash["audited_changes"].type.to_s == "text"
+        if text_column?
           ActiveRecord::Coders::YAMLColumn.new(Object).dump(obj)
         else
           obj
         end
+      end
+
+      def text_column?
+        Audited.audit_class.columns_hash["audited_changes"].type.to_s == "text"
       end
     end
   end
@@ -38,26 +42,26 @@ module Audited
     belongs_to :user,       polymorphic: true
     belongs_to :associated, polymorphic: true
 
-    before_create :set_audit_version_number, :set_audit_user, :set_request_uuid, :set_remote_address
+    before_create :set_version_number, :set_audit_user, :set_request_uuid, :set_remote_address
 
     cattr_accessor :audited_class_names
     self.audited_class_names = Set.new
 
     serialize :audited_changes, YAMLIfTextColumnType
 
-    scope :ascending,     ->{ reorder(audit_version: :asc) }
-    scope :descending,    ->{ reorder(audit_version: :desc)}
+    scope :ascending,     ->{ reorder(version: :asc) }
+    scope :descending,    ->{ reorder(version: :desc)}
     scope :creates,       ->{ where(action: 'create')}
     scope :updates,       ->{ where(action: 'update')}
     scope :destroys,      ->{ where(action: 'destroy')}
 
     scope :up_until,      ->(date_or_time){ where("created_at <= ?", date_or_time) }
-    scope :from_version,  ->(audit_version){ where('audit_version >= ?', audit_version) }
-    scope :to_version,    ->(audit_version){ where('audit_version <= ?', audit_version) }
+    scope :from_version,  ->(version){ where('version >= ?', version) }
+    scope :to_version,    ->(version){ where('version <= ?', version) }
     scope :auditable_finder, ->(auditable_id, auditable_type){ where(auditable_id: auditable_id, auditable_type: auditable_type)}
     # Return all audits older than the current one.
     def ancestors
-      self.class.ascending.auditable_finder(auditable_id, auditable_type).to_version(audit_version)
+      self.class.ascending.auditable_finder(auditable_id, auditable_type).to_version(version)
     end
 
     # Return an instance of what the object looked like at this revision. If
@@ -65,7 +69,7 @@ module Audited
     def revision
       clazz = auditable_type.constantize
       (clazz.find_by_id(auditable_id) || clazz.new).tap do |m|
-        self.class.assign_revision_attributes(m, self.class.reconstruct_attributes(ancestors).merge(audit_version: audit_version))
+        self.class.assign_revision_attributes(m, self.class.reconstruct_attributes(ancestors).merge(audit_version: version))
       end
     end
 
@@ -97,7 +101,7 @@ module Audited
         auditable_type.constantize.create!(audited_changes)
       when 'update'
         # changes back attributes
-        auditable.update_attributes!(audited_changes.transform_values(&:first))
+        auditable.update!(audited_changes.transform_values(&:first))
       else
         raise StandardError, "invalid action given #{action}"
       end
@@ -130,8 +134,8 @@ module Audited
     # All audits made during the block called will be recorded as made
     # by +user+. This method is hopefully threadsafe, making it ideal
     # for background operations that require audit information.
-    def self.as_user(user, &block)
-      last_audited_user = ::Audited.store[:audited_user] 
+    def self.as_user(user)
+      last_audited_user = ::Audited.store[:audited_user]
       ::Audited.store[:audited_user] = user
       yield
     ensure
@@ -140,13 +144,11 @@ module Audited
 
     # @private
     def self.reconstruct_attributes(audits)
-      attributes = {}
-      result = audits.collect do |audit|
-        attributes.merge!(audit.new_attributes)[:audit_version] = audit.audit_version
-        yield attributes if block_given?
+      audits.each_with_object({}) do |audit, all|
+        all.merge!(audit.new_attributes)
+        all[:audit_version] = audit.version
       end
-      block_given? ? result : attributes
-   end
+    end
 
     # @private
     def self.assign_revision_attributes(record, attributes)
@@ -163,15 +165,20 @@ module Audited
     end
 
     # use created_at as timestamp cache key
-    def self.collection_cache_key(collection = all, timestamp_column = :created_at)
+    def self.collection_cache_key(collection = all, *)
       super(collection, :created_at)
     end
 
     private
 
-    def set_audit_version_number
-      max = self.class.auditable_finder(auditable_id, auditable_type).maximum(:audit_version) || 0
-      self.audit_version = max + 1
+    def set_version_number
+      if action == 'create'
+        self.version = 1
+      else
+        collection = Rails::VERSION::MAJOR == 6 ? self.class.unscoped : self.class
+        max = collection.auditable_finder(auditable_id, auditable_type).maximum(:version) || 0
+        self.version = max + 1
+      end
     end
 
     def set_audit_user

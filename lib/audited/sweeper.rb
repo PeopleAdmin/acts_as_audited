@@ -13,6 +13,7 @@ module Audited
       STORED_DATA.each { |k,m| store[k] = send(m) }
       yield
     ensure
+      # binding.pry
       self.controller = nil
       STORED_DATA.keys.each { |k| store.delete(k) }
     end
