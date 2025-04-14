@@ -260,36 +260,16 @@ module Audited
                     comment: audit_comment) unless new_record?
       end
 
-      # def write_audit(attrs)
-      #   attrs[:associated] = send(audit_associated_with) unless audit_associated_with.nil?
-      #   self.audit_comment = nil
-      #
-      #   if auditing_enabled
-      #     run_callbacks(:audit) {
-      #       audit = audits.create(attrs)
-      #       combine_audits_if_needed if attrs[:action] != 'create'
-      #       audit
-      #     }
-      #   end
-      # end
-
       def write_audit(attrs)
         attrs[:associated] = send(audit_associated_with) unless audit_associated_with.nil?
         self.audit_comment = nil
 
         if auditing_enabled
-          # 🔍 Debug before creating the audit
-          puts "\n[DEBUG] bpk1 write_audit attrs:"
-          pp attrs
-          binding.pry
-          # puts "\n[DEBUG] bpk2 updated_at: #{attrs[:updated_at].inspect}" if attrs.key?(:updated_at)
-          # puts "\n[DEBUG] bpk3 created_at: #{attrs[:created_at].inspect}" if attrs.key?(:created_at)
-
-          run_callbacks(:audit) do
+          run_callbacks(:audit) {
             audit = audits.create(attrs)
             combine_audits_if_needed if attrs[:action] != 'create'
             audit
-          end
+          }
         end
       end
 
